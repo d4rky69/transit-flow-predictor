@@ -3,34 +3,908 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TransitFlow - Public Transit Delay Predictor</title>
-  <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  <title>TransitFlow - Public Transit Predictor</title>
+  
+  <!-- Favicons -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚍</text></svg>">
+  
+  <!-- Inter Font -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha384-o/2yZuJZWGJ4s/and21x29jktdZqWOy/qlubxkwdjzp+1qOzZvBCfzWWDZROpJvp" crossorigin="anonymous" />
+
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha384-okbbMvvx/qfQkmiQKfd5VifbKZ/W8p1qIsWvE1ROPUfHWsDcC8/BnHohF7vPg2T6" crossorigin="anonymous"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide-react@latest"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            'dark-bg': '#121212',
+            'dark-surface': '#1E1E1E',
+            'dark-border': '#333333',
+            'electric-blue': '#2E9BFF',
+            'success': '#00C853',
+            'warning': '#FFB300',
+            'danger': '#FF3D00',
+          },
+          zIndex: {
+            'behind': '-1',
+            'normal': '0',
+            'above': '10',
+            'top': '50',
+            'overlay': '100',
+          }
+        },
+      },
+    }
+  </script>
+  
   <style>
     body {
       font-family: 'Inter', sans-serif;
-    }
-    #root {
+      margin: 0;
+      padding: 0;
+      background-color: #121212;
+      color: #ffffff;
       height: 100vh;
+      overflow: hidden;
     }
+    
     .map-container {
+      position: absolute;
       height: 100%;
       width: 100%;
+      z-index: 0;
+    }
+    
+    .ui-layer {
+      position: relative;
+      z-index: 10;
+      pointer-events: none;
+    }
+    
+    .ui-layer > * {
+      pointer-events: auto;
+    }
+    
+    .panel-container {
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    
+    /* Custom map marker styling */
+    .vehicle-icon {
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    }
+    
+    .vehicle-icon.bus {
+      background-color: #2E9BFF;
+    }
+    
+    .vehicle-icon.train {
+      background-color: #8E24AA;
+    }
+    
+    .vehicle-icon.delayed {
+      background-color: #FFB300;
+    }
+    
+    .vehicle-icon.early {
+      background-color: #00C853;
+    }
+    
+    /* Fix leaflet popup styles */
+    .leaflet-popup-content-wrapper {
+      background-color: #1E1E1E !important;
+      color: #ffffff !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+    }
+    
+    .leaflet-popup-tip {
+      background-color: #1E1E1E !important;
+    }
+    
+    /* Transition animations */
+    .panel-slide-enter {
+      transform: translateX(-100%);
+    }
+    
+    .panel-slide-enter-active {
+      transform: translateX(0);
+      transition: transform 300ms;
+    }
+    
+    .panel-slide-exit {
+      transform: translateX(0);
+    }
+    
+    .panel-slide-exit-active {
+      transform: translateX(-100%);
+      transition: transform 300ms;
+    }
+    
+    /* Accessibility high contrast mode */
+    .high-contrast {
+      --bg-color: #000000;
+      --text-color: #ffffff;
+      --accent-color: #FFFF00;
+      --success-color: #00FF00;
+      --warning-color: #FFA500;
+      --danger-color: #FF0000;
+    }
+    
+    .high-contrast .panel-container {
+      background-color: var(--bg-color) !important;
+      color: var(--text-color) !important;
+      border: 2px solid var(--accent-color) !important;
+    }
+    
+    .high-contrast button {
+      border: 2px solid var(--accent-color) !important;
+    }
+    
+    /* Adjust map for screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    
+    /* Fix for popup overlays */
+    .leaflet-popup {
+      z-index: 1000 !important;
     }
   </style>
 </head>
-<body class="bg-gray-900">
+<body>
   <div id="root"></div>
-
-  <!-- Load React and dependencies -->
-  <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.min.js"></script>
   
-  <!-- Load App -->
-  <script type="text/babel" src="app.js"></script>
+  <script type="text/babel">
+    // Extract icon components from Lucide
+    const { 
+      Bus, Train, Clock, AlertTriangle, Search, CheckCircle, XCircle, ArrowRight, 
+      Wheelchair, X, Menu, MapPin, ChevronDown, ChevronUp, CornerRightDown,
+      Accessibility, SunMoon, ZoomIn, ZoomOut, AlertCircle, BarChart4, Shuffle, 
+      BookOpen, Settings, ArrowLeftRight
+    } = lucide;
+
+    // Main App Component
+    const App = () => {
+      // State for vehicle data
+      const [vehicles, setVehicles] = React.useState([]);
+      // State for panel visibility
+      const [isPanelVisible, setIsPanelVisible] = React.useState(true);
+      // State for search form
+      const [searchForm, setSearchForm] = React.useState({
+        start: '',
+        destination: '',
+        timeSaving: true,
+        fuelSaving: false
+      });
+      // State for search results
+      const [searchResults, setSearchResults] = React.useState([]);
+      // State for accessibility modal
+      const [accessibilityModalOpen, setAccessibilityModalOpen] = React.useState(false);
+      // State for accessibility settings
+      const [accessibilitySettings, setAccessibilitySettings] = React.useState({
+        highContrast: false,
+        fontSize: 'medium',
+        wheelchairAccessible: false
+      });
+      
+      // Map reference
+      const mapRef = React.useRef(null);
+      const mapInstanceRef = React.useRef(null);
+
+      // Routes data
+      const routes = [
+        { id: 1, number: '101', type: 'Bus', color: '#2E9BFF' },
+        { id: 2, number: '202', type: 'Bus', color: '#00C853' },
+        { id: 3, number: '303', type: 'Train', color: '#8E24AA' },
+        { id: 4, number: '404', type: 'Train', color: '#FF3D00' }
+      ];
+      
+      // Locations for route generation
+      const locations = [
+        { name: "Downtown", lat: 40.7128, lng: -74.006 },
+        { name: "Uptown", lat: 40.8128, lng: -73.960 },
+        { name: "Midtown", lat: 40.7550, lng: -73.990 },
+        { name: "West Side", lat: 40.7690, lng: -74.020 },
+        { name: "East Side", lat: 40.7650, lng: -73.970 },
+        { name: "South Side", lat: 40.7000, lng: -74.000 },
+        { name: "Central Park", lat: 40.7850, lng: -73.9650 },
+        { name: "Financial District", lat: 40.7080, lng: -74.0100 }
+      ];
+
+      // Initialize map
+      React.useEffect(() => {
+        if (mapRef.current && !mapInstanceRef.current) {
+          // Create map centered on city center
+          mapInstanceRef.current = L.map(mapRef.current).setView([40.7128, -74.006], 13);
+          
+          // Add dark mode tile layer
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+          }).addTo(mapInstanceRef.current);
+        }
+        
+        // Cleanup function
+        return () => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+          }
+        };
+      }, []);
+
+      // Simulate real-time data
+      React.useEffect(() => {
+        // Generate initial vehicle data
+        const generateVehicles = () => {
+          const newVehicles = [];
+          
+          // Generate vehicles for each route
+          routes.forEach(route => {
+            const vehicleCount = Math.floor(Math.random() * 3) + 2; // 2-4 vehicles per route
+            
+            for (let i = 0; i < vehicleCount; i++) {
+              // Random position along the route
+              const startIdx = Math.floor(Math.random() * locations.length);
+              const endIdx = (startIdx + 1 + Math.floor(Math.random() * (locations.length - 1))) % locations.length;
+              
+              const startLocation = locations[startIdx];
+              const endLocation = locations[endIdx];
+              
+              // Calculate current position (somewhere between start and end)
+              const progress = Math.random();
+              const lat = startLocation.lat + (endLocation.lat - startLocation.lat) * progress;
+              const lng = startLocation.lng + (endLocation.lng - startLocation.lng) * progress;
+              
+              // Random status and delay
+              const statusOptions = ['On Time', 'Delayed', 'Early'];
+              const randomStatusIndex = Math.floor(Math.random() * statusOptions.length);
+              const status = statusOptions[randomStatusIndex];
+              
+              let delayInMinutes = 0;
+              if (status === 'Delayed') {
+                delayInMinutes = Math.floor(Math.random() * 15) + 1; // 1-15 minutes delay
+              } else if (status === 'Early') {
+                delayInMinutes = -Math.floor(Math.random() * 5) - 1; // 1-5 minutes early
+              }
+              
+              newVehicles.push({
+                id: `${route.id}-${i}`,
+                routeNumber: route.number,
+                type: route.type,
+                currentPosition: { lat, lng },
+                status: status,
+                delayInMinutes: delayInMinutes,
+                isWheelchairAccessible: Math.random() > 0.3, // 70% chance of being accessible
+                startLocation: startLocation.name,
+                endLocation: endLocation.name,
+                color: route.color,
+                direction: Math.random() > 0.5 ? 'Inbound' : 'Outbound'
+              });
+            }
+          });
+          
+          return newVehicles;
+        };
+        
+        // Update vehicle positions
+        const updateVehiclePositions = () => {
+          setVehicles(prevVehicles => {
+            if (prevVehicles.length === 0) {
+              return generateVehicles();
+            }
+            
+            return prevVehicles.map(vehicle => {
+              // Small movement in a random direction
+              const latDelta = (Math.random() - 0.5) * 0.002;
+              const lngDelta = (Math.random() - 0.5) * 0.002;
+              
+              // Chance of status change
+              let newStatus = vehicle.status;
+              let newDelay = vehicle.delayInMinutes;
+              
+              if (Math.random() < 0.1) { // 10% chance of status change
+                const statusOptions = ['On Time', 'Delayed', 'Early'];
+                const newStatusIndex = Math.floor(Math.random() * statusOptions.length);
+                newStatus = statusOptions[newStatusIndex];
+                
+                if (newStatus === 'Delayed') {
+                  newDelay = Math.floor(Math.random() * 15) + 1; // 1-15 minutes delay
+                } else if (newStatus === 'Early') {
+                  newDelay = -Math.floor(Math.random() * 5) - 1; // 1-5 minutes early
+                } else {
+                  newDelay = 0;
+                }
+              }
+              
+              return {
+                ...vehicle,
+                currentPosition: {
+                  lat: vehicle.currentPosition.lat + latDelta,
+                  lng: vehicle.currentPosition.lng + lngDelta
+                },
+                status: newStatus,
+                delayInMinutes: newDelay
+              };
+            });
+          });
+        };
+        
+        // Initial update
+        updateVehiclePositions();
+        
+        // Set interval for updates
+        const intervalId = setInterval(updateVehiclePositions, 5000);
+        
+        return () => clearInterval(intervalId);
+      }, []);
+      
+      // Update map markers when vehicles change
+      React.useEffect(() => {
+        if (!mapInstanceRef.current || vehicles.length === 0) return;
+        
+        // Clear existing markers
+        mapInstanceRef.current.eachLayer(layer => {
+          if (layer instanceof L.Marker) {
+            mapInstanceRef.current.removeLayer(layer);
+          }
+        });
+        
+        // Add new markers
+        vehicles.forEach(vehicle => {
+          // Create custom icon
+          const statusClass = vehicle.status === 'Delayed' ? 'delayed' : 
+                              vehicle.status === 'Early' ? 'early' : '';
+          
+          const iconHtml = `<div class="vehicle-icon ${vehicle.type.toLowerCase()} ${statusClass}" style="width: 30px; height: 30px;">
+                              ${vehicle.type === 'Bus' ? '🚍' : '🚆'}
+                            </div>`;
+          
+          const icon = L.divIcon({
+            html: iconHtml,
+            className: '', // No default class
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+          
+          // Create marker
+          const marker = L.marker([vehicle.currentPosition.lat, vehicle.currentPosition.lng], {
+            icon: icon,
+            title: `${vehicle.type} ${vehicle.routeNumber}`
+          }).addTo(mapInstanceRef.current);
+          
+          // Create popup content
+          const statusColor = vehicle.status === 'Delayed' ? 'text-warning' : 
+                              vehicle.status === 'Early' ? 'text-success' : 'text-white';
+          
+          const delayText = vehicle.delayInMinutes > 0 
+            ? `+${vehicle.delayInMinutes} min delay` 
+            : vehicle.delayInMinutes < 0 
+              ? `${Math.abs(vehicle.delayInMinutes)} min early` 
+              : 'On time';
+          
+          const popupContent = `
+            <div class="flex flex-col">
+              <div class="font-bold text-lg">${vehicle.type} ${vehicle.routeNumber}</div>
+              <div>${vehicle.direction}: ${vehicle.startLocation} → ${vehicle.endLocation}</div>
+              <div class="${statusColor}">${vehicle.status} (${delayText})</div>
+              <div>${vehicle.isWheelchairAccessible ? '♿ Wheelchair Accessible' : 'Not Wheelchair Accessible'}</div>
+            </div>
+          `;
+          
+          marker.bindPopup(popupContent);
+        });
+      }, [vehicles]);
+      
+      // Handle search
+      const handleSearch = (e) => {
+        e.preventDefault();
+        
+        // Basic validation
+        if (!searchForm.start || !searchForm.destination) {
+          alert('Please enter both start and destination');
+          return;
+        }
+        
+        // Generate search results
+        const generateRouteOptions = () => {
+          const options = [];
+          
+          // Number of route options to generate
+          const optionsCount = Math.floor(Math.random() * 3) + 2; // 2-4 options
+          
+          for (let i = 0; i < optionsCount; i++) {
+            // Select a random route
+            const routeIndex = Math.floor(Math.random() * routes.length);
+            const route = routes[routeIndex];
+            
+            // Random arrival time (5-30 minutes from now)
+            const arrivalMinutes = Math.floor(Math.random() * 25) + 5;
+            
+            // Random delay (-5 to 15 minutes)
+            const delayProbability = Math.random();
+            let delay = 0;
+            let status = 'On Time';
+            
+            if (delayProbability > 0.7) { // 30% chance of delay
+              delay = Math.floor(Math.random() * 15) + 1;
+              status = 'Delayed';
+            } else if (delayProbability < 0.2) { // 20% chance of being early
+              delay = -Math.floor(Math.random() * 5) - 1;
+              status = 'Early';
+            }
+            
+            // Random number of transfers
+            const transfers = Math.floor(Math.random() * 3);
+            
+            // Random wheelchair accessibility
+            const isAccessible = Math.random() > 0.3; // 70% chance of being accessible
+            
+            // Calculate estimated time
+            const now = new Date();
+            const arrivalTime = new Date(now.getTime() + (arrivalMinutes + delay) * 60000);
+            const formattedArrivalTime = `${arrivalTime.getHours()}:${arrivalTime.getMinutes().toString().padStart(2, '0')}`;
+            
+            options.push({
+              id: i + 1,
+              routeNumber: route.number,
+              routeType: route.type,
+              estimatedTime: formattedArrivalTime,
+              status: status,
+              delayInMinutes: delay,
+              transfers: transfers,
+              isWheelchairAccessible: isAccessible,
+              duration: arrivalMinutes + delay,
+              distance: Math.floor(Math.random() * 10) + 1, // 1-10 km
+              color: route.color
+            });
+          }
+          
+          // Sort by arrival time
+          options.sort((a, b) => a.duration - b.duration);
+          
+          return options;
+        };
+        
+        const routeOptions = generateRouteOptions();
+        
+        // Add alternative route if time saving is selected
+        let alternatives = [];
+        if (searchForm.timeSaving && routeOptions.length > 0) {
+          // If primary route is delayed, suggest a faster alternative
+          const primaryRoute = routeOptions[0];
+          if (primaryRoute.delayInMinutes > 5) {
+            // Create an alternative with less delay
+            const alternativeRoute = {
+              ...primaryRoute,
+              id: 'alt-1',
+              routeNumber: routes[Math.floor(Math.random() * routes.length)].number,
+              delayInMinutes: Math.max(0, primaryRoute.delayInMinutes - Math.floor(Math.random() * 5) - 3),
+              status: 'On Time',
+              isAlternative: true,
+              timeSaved: Math.floor(Math.random() * 7) + 3 // 3-10 minutes saved
+            };
+            
+            alternatives = [alternativeRoute];
+          }
+        }
+        
+        // If fuel saving is checked, add a route with fewer transfers
+        if (searchForm.fuelSaving && routeOptions.length > 0) {
+          // Find the route with the most transfers
+          const maxTransfers = Math.max(...routeOptions.map(route => route.transfers));
+          
+          if (maxTransfers > 0) {
+            const fuelEfficientRoute = {
+              ...routeOptions[Math.floor(Math.random() * routeOptions.length)],
+              id: 'fuel-1',
+              transfers: 0,
+              isAlternative: true,
+              isFuelEfficient: true,
+              estimatedSavings: Math.floor(Math.random() * 5) + 2 + ' kg CO₂' // Random CO₂ savings
+            };
+            
+            alternatives.push(fuelEfficientRoute);
+          }
+        }
+        
+        // Apply wheelchair accessibility filter
+        let filteredOptions = routeOptions;
+        if (accessibilitySettings.wheelchairAccessible) {
+          filteredOptions = routeOptions.filter(route => route.isWheelchairAccessible);
+        }
+        
+        setSearchResults([...filteredOptions, ...alternatives]);
+        
+        // If there are results, focus the map on the destination
+        if (filteredOptions.length > 0 && mapInstanceRef.current) {
+          // Find a location that matches or approximates the destination
+          const destinationLocation = locations.find(loc => 
+            loc.name.toLowerCase().includes(searchForm.destination.toLowerCase())
+          ) || locations[Math.floor(Math.random() * locations.length)];
+          
+          mapInstanceRef.current.panTo([destinationLocation.lat, destinationLocation.lng]);
+        }
+      };
+      
+      // Handle font size changes
+      const changeFontSize = (size) => {
+        setAccessibilitySettings(prev => ({...prev, fontSize: size}));
+        
+        // Apply the font size to the document
+        const sizeMap = {
+          'small': '0.875rem',
+          'medium': '1rem',
+          'large': '1.125rem',
+          'x-large': '1.25rem'
+        };
+        
+        document.documentElement.style.fontSize = sizeMap[size] || '1rem';
+      };
+      
+      // Toggle panel visibility for mobile
+      const togglePanel = () => {
+        setIsPanelVisible(!isPanelVisible);
+      };
+      
+      // Apply accessibility class
+      React.useEffect(() => {
+        if (accessibilitySettings.highContrast) {
+          document.body.classList.add('high-contrast');
+        } else {
+          document.body.classList.remove('high-contrast');
+        }
+      }, [accessibilitySettings.highContrast]);
+
+      return (
+        <div className={`h-screen w-full overflow-hidden ${accessibilitySettings.highContrast ? 'high-contrast' : ''}`}>
+          {/* Map Container */}
+          <div className="map-container" ref={mapRef} aria-label="Interactive transit map"></div>
+          
+          {/* UI Layer - positioned above map with correct z-index */}
+          <div className="ui-layer w-full h-full">
+            {/* Mobile Toggle Button */}
+            <button 
+              className="md:hidden fixed top-4 right-4 bg-dark-surface p-2 rounded-full shadow-lg z-50"
+              onClick={togglePanel}
+              aria-label="Toggle panel"
+            >
+              <Menu size={24} className="text-white" />
+            </button>
+            
+            {/* Main Side Panel */}
+            <div className={`
+              fixed top-0 left-0 h-full w-full md:w-96 transform transition-transform duration-300 ease-in-out
+              ${isPanelVisible ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 z-40
+            `}>
+              <div className="panel-container bg-dark-surface/80 h-full p-5 shadow-lg border-r border-dark-border overflow-y-auto">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h1 className="text-2xl font-bold flex items-center text-electric-blue">
+                    <Bus className="mr-2" size={28} />
+                    TransitFlow
+                  </h1>
+                  <button 
+                    className="md:hidden text-white"
+                    onClick={togglePanel}
+                    aria-label="Close panel"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                {/* Search Form */}
+                <form onSubmit={handleSearch} className="mb-6">
+                  <div className="mb-4">
+                    <label htmlFor="start" className="block mb-2 text-sm font-medium">Starting Point</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <MapPin size={18} className="text-gray-400" />
+                      </div>
+                      <input
+                        id="start"
+                        type="text"
+                        className="pl-10 bg-dark-bg border border-dark-border text-white rounded-lg block w-full p-2.5"
+                        placeholder="Enter starting point"
+                        value={searchForm.start}
+                        onChange={(e) => setSearchForm({...searchForm, start: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <label htmlFor="destination" className="block mb-2 text-sm font-medium">Destination</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <MapPin size={18} className="text-gray-400" />
+                      </div>
+                      <input
+                        id="destination"
+                        type="text"
+                        className="pl-10 bg-dark-bg border border-dark-border text-white rounded-lg block w-full p-2.5"
+                        placeholder="Enter destination"
+                        value={searchForm.destination}
+                        onChange={(e) => setSearchForm({...searchForm, destination: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Options */}
+                  <div className="flex space-x-4 mb-4">
+                    <div className="flex items-center">
+                      <input
+                        id="time-saving"
+                        type="checkbox"
+                        className="w-4 h-4 accent-electric-blue"
+                        checked={searchForm.timeSaving}
+                        onChange={(e) => setSearchForm({...searchForm, timeSaving: e.target.checked})}
+                      />
+                      <label htmlFor="time-saving" className="ml-2 text-sm font-medium">Time Saving</label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        id="fuel-saving"
+                        type="checkbox"
+                        className="w-4 h-4 accent-electric-blue"
+                        checked={searchForm.fuelSaving}
+                        onChange={(e) => setSearchForm({...searchForm, fuelSaving: e.target.checked})}
+                      />
+                      <label htmlFor="fuel-saving" className="ml-2 text-sm font-medium">Eco-Friendly</label>
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    className="w-full bg-electric-blue text-white flex items-center justify-center p-3 rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    <Search size={18} className="mr-2" />
+                    Find Routes
+                  </button>
+                </form>
+                
+                {/* Search Results */}
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold">Route Options</h2>
+                  
+                  {searchResults.length === 0 && (
+                    <p className="text-gray-400 text-sm">Search for routes to see options.</p>
+                  )}
+                  
+                  {searchResults.map(route => (
+                    <div 
+                      key={route.id} 
+                      className={`bg-dark-bg p-4 rounded-lg border-l-4 ${route.isAlternative ? 'border-warning' : `border-[${route.color}]`}`}
+                      style={{ borderLeftColor: route.isAlternative ? '#FFB300' : route.color }}
+                    >
+                      {route.isAlternative && (
+                        <div className="mb-2 flex items-center text-warning font-medium">
+                          {route.isFuelEfficient ? (
+                            <>
+                              <Shuffle className="mr-1" size={16} />
+                              <span>Eco-Friendly Alternative</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="mr-1" size={16} />
+                              <span>Alternative Route (Save {route.timeSaved} min)</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center">
+                            {route.routeType === 'Bus' ? 
+                              <Bus size={18} className="mr-2" /> : 
+                              <Train size={18} className="mr-2" />
+                            }
+                            <span className="font-bold">{route.routeNumber} {route.routeType}</span>
+                          </div>
+                          
+                          <div className="flex items-center mt-1 text-sm">
+                            <Clock size={14} className="mr-1" />
+                            <span>Arrival: {route.estimatedTime}</span>
+                          </div>
+                          
+                          <div className="flex items-center mt-1">
+                            {route.transfers === 0 ? (
+                              <span className="text-sm text-gray-400">Direct route</span>
+                            ) : (
+                              <span className="text-sm text-gray-400">
+                                {route.transfers} transfer{route.transfers > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {route.isFuelEfficient && (
+                            <div className="text-sm text-success mt-1">
+                              Saves approx. {route.estimatedSavings}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className={`font-medium ${route.status === 'Delayed' ? 'text-warning' : route.status === 'Early' ? 'text-success' : 'text-white'}`}>
+                            {route.status}
+                          </div>
+                          
+                          <div className={`text-sm ${route.delayInMinutes > 0 ? 'text-warning' : route.delayInMinutes < 0 ? 'text-success' : 'text-gray-400'}`}>
+                            {route.delayInMinutes > 0 ? 
+                              `+${route.delayInMinutes} min delay` : 
+                              route.delayInMinutes < 0 ? 
+                              `${Math.abs(route.delayInMinutes)} min early` : 
+                              'On time'}
+                          </div>
+                          
+                          {route.isWheelchairAccessible && (
+                            <div className="mt-1">
+                              <Wheelchair size={16} className="inline text-electric-blue" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Accessibility FAB */}
+            <button
+              className="fixed bottom-6 right-6 bg-electric-blue p-3 rounded-full shadow-lg z-50 hover:bg-blue-600 transition-colors"
+              onClick={() => setAccessibilityModalOpen(true)}
+              aria-label="Accessibility options"
+            >
+              <Accessibility size={24} className="text-white" />
+            </button>
+            
+            {/* Accessibility Modal */}
+            {accessibilityModalOpen && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-overlay p-4">
+                <div className="bg-dark-surface border border-dark-border rounded-lg max-w-md w-full p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Accessibility Options</h2>
+                    <button 
+                      className="text-gray-400 hover:text-white"
+                      onClick={() => setAccessibilityModalOpen(false)}
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {/* High Contrast Mode */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">High Contrast Mode</h3>
+                        <p className="text-sm text-gray-400">Increases visibility for low vision</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={accessibilitySettings.highContrast}
+                          onChange={() => setAccessibilitySettings({
+                            ...accessibilitySettings,
+                            highContrast: !accessibilitySettings.highContrast
+                          })}
+                        />
+                        <div className="w-11 h-6 bg-dark-bg peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-electric-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-electric-blue"></div>
+                      </label>
+                    </div>
+                    
+                    {/* Font Size */}
+                    <div>
+                      <h3 className="font-medium mb-2">Font Size</h3>
+                      <div className="flex space-x-2">
+                        <button
+                          className={`px-3 py-2 rounded ${accessibilitySettings.fontSize === 'small' ? 'bg-electric-blue' : 'bg-dark-bg'}`}
+                          onClick={() => changeFontSize('small')}
+                        >
+                          Small
+                        </button>
+                        <button
+                          className={`px-3 py-2 rounded ${accessibilitySettings.fontSize === 'medium' ? 'bg-electric-blue' : 'bg-dark-bg'}`}
+                          onClick={() => changeFontSize('medium')}
+                        >
+                          Medium
+                        </button>
+                        <button
+                          className={`px-3 py-2 rounded ${accessibilitySettings.fontSize === 'large' ? 'bg-electric-blue' : 'bg-dark-bg'}`}
+                          onClick={() => changeFontSize('large')}
+                        >
+                          Large
+                        </button>
+                        <button
+                          className={`px-3 py-2 rounded ${accessibilitySettings.fontSize === 'x-large' ? 'bg-electric-blue' : 'bg-dark-bg'}`}
+                          onClick={() => changeFontSize('x-large')}
+                        >
+                          X-Large
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Accessible Routes Only */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">Show Accessible Routes Only</h3>
+                        <p className="text-sm text-gray-400">Filter for wheelchair accessible routes</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={accessibilitySettings.wheelchairAccessible}
+                          onChange={() => setAccessibilitySettings({
+                            ...accessibilitySettings,
+                            wheelchairAccessible: !accessibilitySettings.wheelchairAccessible
+                          })}
+                        />
+                        <div className="w-11 h-6 bg-dark-bg peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-electric-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-electric-blue"></div>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <button
+                      className="w-full bg-electric-blue text-white p-3 rounded-lg hover:bg-blue-600 transition-colors"
+                      onClick={() => setAccessibilityModalOpen(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Render App
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
 </body>
 </html>
