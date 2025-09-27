@@ -15,18 +15,12 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Leaflet for Maps - Fixed version match -->
+    <!-- Leaflet for Maps - Fixed version matching -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     
     <!-- Inter Font -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
-    
-    <!-- Lucide Icons - Fixed implementation -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
-        lucide.createIcons();
-    </script>
     
     <style>
         body {
@@ -111,7 +105,7 @@
     
     <script type="text/babel">
         // Main App Component
-        const App = () => {
+        function App() {
             const [vehicles, setVehicles] = React.useState([]);
             const [map, setMap] = React.useState(null);
             const [markers, setMarkers] = React.useState({});
@@ -125,6 +119,7 @@
             const [highContrast, setHighContrast] = React.useState(false);
             const [fontSize, setFontSize] = React.useState(16);
             const [showAccessibleRoutesOnly, setShowAccessibleRoutesOnly] = React.useState(false);
+            const [realTimeData, setRealTimeData] = React.useState(true);
             
             const mapRef = React.useRef(null);
             
@@ -170,6 +165,8 @@
             
             // Update vehicle positions and statuses
             const updateVehiclePositions = React.useCallback(() => {
+                if (!realTimeData) return;
+                
                 setVehicles(prevVehicles => {
                     return prevVehicles.map(vehicle => {
                         // Small random movement
@@ -197,7 +194,7 @@
                         };
                     });
                 });
-            }, []);
+            }, [realTimeData]);
             
             // Initialize map
             React.useEffect(() => {
@@ -362,19 +359,24 @@
                 return routes;
             };
             
-            // SVG Icon Components
+            // Toggle panel button
+            const handleTogglePanel = () => {
+                setIsPanelOpen(!isPanelOpen);
+            };
+
+            // SVG Icon components for cleaner rendering
             const ChevronLeftIcon = () => (
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 18 9 12 15 6"></polyline>
+                    <path d="M15 18l-6-6 6-6" />
                 </svg>
             );
-            
+
             const ChevronRightIcon = () => (
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"></polyline>
+                    <path d="M9 18l6-6-6-6" />
                 </svg>
             );
-            
+
             const AccessibilityIcon = () => (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -382,8 +384,8 @@
                     <path d="M7 21l3-9 3 9M8 18h8"></path>
                 </svg>
             );
-            
-            const XIcon = () => (
+
+            const CloseIcon = () => (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -402,12 +404,16 @@
                     {/* UI Container (higher z-index) */}
                     <div className="ui-container">
                         {/* Side Panel */}
-                        <div className={`fixed top-0 left-0 h-full w-80 bg-gray-900 bg-opacity-90 p-5 transform transition-transform duration-300 ease-in-out shadow-lg ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div 
+                            className={`fixed top-0 left-0 h-full w-80 bg-gray-900 bg-opacity-90 p-5 transform transition-transform duration-300 ease-in-out shadow-lg ${
+                                isPanelOpen ? 'translate-x-0' : '-translate-x-full'
+                            }`}
+                        >
                             <div className="flex justify-between items-center mb-6">
                                 <h1 className="text-2xl font-bold text-blue-400">TransitFlow</h1>
                                 <button 
                                     className="text-white bg-blue-600 hover:bg-blue-700 p-2 rounded-full"
-                                    onClick={() => setIsPanelOpen(!isPanelOpen)}
+                                    onClick={handleTogglePanel}
                                 >
                                     <ChevronLeftIcon />
                                 </button>
@@ -458,6 +464,17 @@
                                         />
                                         <label htmlFor="fuel-saving" className="ml-2 text-sm text-gray-300">Fewer Transfers</label>
                                     </div>
+                                </div>
+
+                                <div className="flex items-center mb-4">
+                                    <input 
+                                        type="checkbox" 
+                                        id="real-time-data" 
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-700 rounded"
+                                        checked={realTimeData}
+                                        onChange={(e) => setRealTimeData(e.target.checked)}
+                                    />
+                                    <label htmlFor="real-time-data" className="ml-2 text-sm text-gray-300">Enable Real-time Updates</label>
                                 </div>
                                 
                                 <button 
@@ -536,7 +553,8 @@
                         {!isPanelOpen && (
                             <button 
                                 className="fixed top-4 left-4 bg-blue-600 hover:bg-blue-700 p-3 rounded-full shadow-lg text-white z-30"
-                                onClick={() => setIsPanelOpen(true)}
+                                onClick={handleTogglePanel}
+                                aria-label="Open Panel"
                             >
                                 <ChevronRightIcon />
                             </button>
@@ -560,17 +578,27 @@
                                         <button 
                                             className="text-gray-400 hover:text-white"
                                             onClick={() => setIsAccessibilityOpen(false)}
+                                            aria-label="Close Accessibility Options"
                                         >
-                                            <XIcon />
+                                            <CloseIcon />
                                         </button>
                                     </div>
                                     
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-gray-300">High Contrast Mode</label>
+                                            <label htmlFor="high-contrast" className="text-gray-300">High Contrast Mode</label>
                                             <div 
+                                                id="high-contrast"
+                                                role="checkbox"
+                                                aria-checked={highContrast}
+                                                tabIndex={0}
                                                 className={`w-12 h-6 rounded-full p-1 cursor-pointer ${highContrast ? 'bg-blue-600' : 'bg-gray-600'}`}
                                                 onClick={() => setHighContrast(!highContrast)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        setHighContrast(!highContrast);
+                                                    }
+                                                }}
                                             >
                                                 <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${highContrast ? 'translate-x-6' : 'translate-x-0'}`}></div>
                                             </div>
@@ -582,6 +610,7 @@
                                                 <button 
                                                     className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-l"
                                                     onClick={() => setFontSize(Math.max(12, fontSize - 2))}
+                                                    aria-label="Decrease Font Size"
                                                 >
                                                     A-
                                                 </button>
@@ -589,6 +618,7 @@
                                                 <button 
                                                     className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded-r"
                                                     onClick={() => setFontSize(Math.min(24, fontSize + 2))}
+                                                    aria-label="Increase Font Size"
                                                 >
                                                     A+
                                                 </button>
@@ -596,10 +626,19 @@
                                         </div>
                                         
                                         <div className="flex items-center justify-between">
-                                            <label className="text-gray-300">Show Accessible Routes Only</label>
+                                            <label htmlFor="accessible-routes" className="text-gray-300">Show Accessible Routes Only</label>
                                             <div 
+                                                id="accessible-routes"
+                                                role="checkbox"
+                                                aria-checked={showAccessibleRoutesOnly}
+                                                tabIndex={0}
                                                 className={`w-12 h-6 rounded-full p-1 cursor-pointer ${showAccessibleRoutesOnly ? 'bg-blue-600' : 'bg-gray-600'}`}
                                                 onClick={() => setShowAccessibleRoutesOnly(!showAccessibleRoutesOnly)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        setShowAccessibleRoutesOnly(!showAccessibleRoutesOnly);
+                                                    }
+                                                }}
                                             >
                                                 <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${showAccessibleRoutesOnly ? 'translate-x-6' : 'translate-x-0'}`}></div>
                                             </div>
@@ -620,7 +659,7 @@
                     </div>
                 </div>
             );
-        };
+        }
         
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
